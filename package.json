@@ -1,0 +1,45 @@
+{
+  "name": "aksara-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "preview": "vite preview --host 0.0.0.0",
+    "predev": "node scripts/copy-pdf-assets.mjs",
+    "prebuild": "node scripts/copy-pdf-assets.mjs",
+    "fixture:epub": "vite-node scripts/epub-fixture.ts",
+    "format": "prettier --write src tests scripts *.ts *.json README.md docs .github"
+  },
+  "dependencies": {
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/lora": "^5.3.0",
+    "epubjs": "^0.3.93",
+    "fflate": "^0.8.2",
+    "idb": "^8.0.3",
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^5.4.394",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.9.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "pdf-lib": "^1.17.1",
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.12",
+    "vite-node": "^3.2.4",
+    "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.8.11"
+  }
+}

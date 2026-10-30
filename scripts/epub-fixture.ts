@@ -1,0 +1,14 @@
+import { writeFile, mkdir } from "node:fs/promises";
+import { exportEpub } from "../src/core/epub";
+import { validateEpub } from "../src/core/validation";
+import { demoBook } from "../src/core/demo";
+const book = demoBook();
+book.chapters[0].blocks[1].text += ' Karakter: < > & " ‘ ’ é —.';
+book.chapters[0].blocks[2].kind = "heading";
+book.chapters[0].blocks[2].level = 2;
+const bytes = exportEpub(book);
+const errors = validateEpub(bytes);
+if (errors.length) throw new Error(errors.join("\n"));
+await mkdir(".tmp", { recursive: true });
+await writeFile(".tmp/fixture.epub", bytes);
+console.log("Synthetic EPUB fixture: .tmp/fixture.epub");
