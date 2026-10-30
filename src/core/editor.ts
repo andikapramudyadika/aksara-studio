@@ -58,14 +58,21 @@ export function mergeBlock(book: Book, id: string): Book {
   const next = editableCopy(book);
   for (const c of next.chapters) {
     const i = c.blocks.findIndex((b) => b.id === id);
-    if (i >= 0 && i < c.blocks.length - 1) {
+    let j = i + 1;
+    while (c.blocks[j]?.excluded) j++;
+    if (
+      i >= 0 &&
+      j < c.blocks.length &&
+      c.blocks[j].kind !== "heading" &&
+      c.blocks[j].kind !== "figure"
+    ) {
       const a = c.blocks[i],
-        b = c.blocks[i + 1];
+        b = c.blocks[j];
       a.text += " " + b.text;
       a.originalText += "\n" + b.originalText;
       a.sources.push(...b.sources);
       a.flags = [...new Set([...a.flags, ...b.flags])];
-      c.blocks.splice(i + 1, 1);
+      c.blocks.splice(j, 1);
       next.audit.push({
         at: new Date().toISOString(),
         action: "Gabung paragraf",
@@ -111,5 +118,25 @@ export const kindLabels: Record<BlockKind, string> = {
   list: "Daftar",
   quote: "Kutipan / dialog",
   scene: "Pemisah adegan",
-  figure: "Gambar (perlu ditinjau)",
+  figure: "Gambar",
 };
+
+export function setRunningExcluded(book: Book, excluded: boolean): Book {
+  const next = editableCopy(book);
+  for (const b of allBlocks(next)) {
+    if (!b.flags.includes("running") || !!b.excluded === excluded) continue;
+    b.excluded = excluded;
+    next.audit.push({
+      at: new Date().toISOString(),
+      action: excluded
+        ? "Kecualikan kandidat header/footer"
+        : "Pulihkan header/footer",
+      blockId: b.id,
+      before: String(!excluded),
+      after: String(excluded),
+    });
+  }
+  next.updatedAt = new Date().toISOString();
+  next.status = "review";
+  return next;
+}

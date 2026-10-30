@@ -291,3 +291,119 @@ test("keyboard, reduced motion and storage failure feedback", async ({
     "PDF belum dapat diproses",
   );
 });
+
+test("conversion retains images, joins drop caps and chapter titles, and restores running matter", async ({
+  page,
+}) => {
+  const pdf = await PDFDocument.create(),
+    font = await pdf.embedFont(StandardFonts.TimesRoman),
+    bold = await pdf.embedFont(StandardFonts.TimesRomanBold);
+  const toc = pdf.addPage([600, 800]);
+  toc.drawText("DAFTAR ISI", { x: 60, y: 730, size: 24, font: bold });
+  for (const [i, text] of [
+    "PRAKATA .......................... i",
+    "1. RUANG DAN WAKTU BERSAMA ............ 2",
+    "Catatan .................................. 4",
+  ].entries())
+    toc.drawText(text, { x: 60, y: 680 - i * 25, size: 12, font });
+  const opening = pdf.addPage([600, 800]);
+  opening.drawText("1.", { x: 265, y: 700, size: 32, font: bold });
+  opening.drawText("Ruang dan Waktu", { x: 150, y: 650, size: 32, font: bold });
+  opening.drawText("Bersama", { x: 220, y: 610, size: 32, font: bold });
+  const image = await pdf.embedPng(
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  );
+  for (let i = 0; i < 3; i++) {
+    const p = pdf.addPage([600, 800]);
+    p.drawText("Nama Buku Sintetis", { x: 60, y: 775, size: 10, font });
+    p.drawText(`${i + 1} - Penulis`, { x: 60, y: 30, size: 10, font });
+    if (i === 0) {
+      p.drawText("P", { x: 60, y: 700, size: 36, font: bold });
+      p.drawText("ria membaca buku panjang dengan tenang", {
+        x: 85,
+        y: 700,
+        size: 12,
+        font,
+      });
+      p.drawText("dan meneruskan kalimat pada baris selanjutnya.", {
+        x: 60,
+        y: 683,
+        size: 12,
+        font,
+      });
+    } else
+      p.drawText("Ini paragraf lain yang tetap terpisah dengan benar.", {
+        x: 60,
+        y: 700,
+        size: 12,
+        font,
+      });
+    if (i === 1) {
+      p.drawImage(image, { x: 100, y: 350, width: 200, height: 120 });
+      p.drawText("Keterangan ilustrasi sintetis.", {
+        x: 100,
+        y: 330,
+        size: 12,
+        font,
+      });
+    }
+  }
+  await page.goto("./");
+  await page.getByLabel("Pilih file PDF").setInputFiles({
+    name: "synthetic-structure.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(await pdf.save()),
+  });
+  await page
+    .getByRole("button", { name: "Lanjut ke ekspor" })
+    .waitFor({ timeout: 30000 });
+  await expect(
+    page
+      .locator(".book-block.heading")
+      .filter({ hasText: "1. Ruang dan Waktu Bersama" }),
+  ).toHaveCount(1);
+  await expect(page.locator(".book-reading")).toContainText(
+    "Pria membaca buku panjang dengan tenang dan meneruskan",
+  );
+  await expect(page.locator(".book-block.figure img")).toHaveCount(1);
+  await expect
+    .poll(() =>
+      page
+        .locator(".book-block.figure img")
+        .evaluate((e: HTMLImageElement) => e.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await page.getByLabel("Opsi bacaan").click();
+  await page.getByLabel("Tampilkan blok dikecualikan").check();
+  await page.getByLabel("Opsi bacaan").click();
+  const excluded = await page.locator(".book-block.excluded").count();
+  expect(excluded).toBeGreaterThanOrEqual(6);
+  await page.getByRole("button", { name: /catatan tinjauan/ }).click();
+  await expect(page.locator(".quality-grid")).toContainText(
+    "item sumber belum terwakili",
+  );
+  await page
+    .getByRole("button", { name: "Pulihkan semua header/footer", exact: true })
+    .click();
+  await expect(page.locator(".book-block.excluded")).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.locator(".book-block.excluded")).toHaveCount(excluded);
+  await page.getByRole("button", { name: "Tutup laporan" }).click();
+  await page.getByRole("button", { name: "Lanjut ke ekspor" }).click();
+  await page.getByRole("button", { name: "Buat EPUB", exact: true }).click();
+  await page.getByRole("heading", { name: "EPUB Anda siap." }).waitFor();
+  const promise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Unduh EPUB" }).click();
+  const d = await promise,
+    z = unzipSync(new Uint8Array(await fs.readFile((await d.path())!)));
+  expect(
+    Object.keys(z).filter((n) => n.startsWith("EPUB/assets/")),
+  ).toHaveLength(1);
+  await fs.copyFile((await d.path())!, `${artifactRoot}/structure.epub`);
+  expect(strFromU8(z["EPUB/nav.xhtml"])).not.toContain(
+    "........................",
+  );
+});

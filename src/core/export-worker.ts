@@ -13,6 +13,11 @@ export function exportInWorker(book: Book): Promise<Uint8Array> {
       worker.terminate();
       reject(new Error(e.message));
     };
-    worker.postMessage({ ...book, pages: [], audit: [], issues: [] });
+    worker.postMessage({
+      ...book,
+      pages: book.pages.map((p) => ({ ...p, items: [] })),
+      audit: [],
+      issues: [],
+    });
   });
 }

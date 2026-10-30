@@ -25,6 +25,15 @@ Aksara Studio membantu memindahkan buku dari halaman PDF yang statis ke format E
 
 Aplikasi ini berjalan sebagai situs statis. Tidak diperlukan backend konversi, akun aplikasi, API key, atau layanan berbayar. **Dukungan utama adalah PDF teks satu kolom**, dengan laporan untuk bagian yang perlu diperiksa.
 
+## Pembaruan versi 1.1
+
+- Huruf awal besar (_drop cap_) disambung ke kata; nomor dan judul bab beberapa baris dikenali sebagai satu judul.
+- Daftar isi sumber membantu pemetaan bab/subjudul; bookmark generik dan kata “Bab/bagian” pada kalimat biasa tidak langsung membuat bab baru.
+- Header/footer ganjil–genap dan per bagian dikenali. Temuan kuat dikecualikan dengan audit dan dapat dipulihkan; kandidat meragukan tetap disertakan.
+- Ilustrasi yang dapat ditempatkan diambil dari area gambar PDF, ditampilkan di editor, dan dikemas ke EPUB. Sampul asli digunakan bila tersedia.
+- Laporan kualitas memisahkan informasi dari peringatan, menyediakan pemulihan massal, dan memeriksa cakupan referensi sumber.
+- Buku panjang ditinjau per bagian. Proyek lama dapat diperbarui melalui **Analisis ulang sebagai salinan**; proyek dan koreksi lama tetap disimpan.
+
 ## Fitur
 
 | Area            | Kemampuan tahap pertama                                                                             |
@@ -38,14 +47,14 @@ Aplikasi ini berjalan sebagai situs statis. Tidak diperlukan backend konversi, a
 | Ekspor EPUB     | EPUB 3 reflowable, metadata, sampul otomatis atau PNG/JPEG, XHTML, CSS, dan navigasi bab/heading    |
 | Kenyamanan      | Light/dark mode, ukuran huruf, jarak baris, lebar dan tema baca, serta pembaca EPUB bawaan          |
 
-> **Pelestarian isi tidak dijamin otomatis.** Gambar isi, tabel, rumus, footnote, dan halaman pindaian belum direkonstruksi secara andal. Selalu bandingkan hasil dengan PDF sumber sebelum membagikan EPUB.
+> **Pelestarian isi tidak dijamin otomatis.** Gambar umum didukung dengan batas yang dilaporkan. Mask/pengulangan gambar, tabel, rumus, footnote, dan isi pindaian masih memerlukan pemeriksaan. Selalu bandingkan hasil dengan PDF sumber sebelum membagikan EPUB.
 
 ## Cara menggunakan
 
 1. **Pilih PDF** yang teksnya dapat dipilih. Gunakan **Coba buku contoh** jika ingin mencoba alurnya terlebih dahulu.
 2. **Tunggu analisis.** Tetap buka tab; checkpoint disimpan setiap halaman. Analisis dapat dibatalkan dan dilanjutkan.
 3. **Tinjau paragraf.** Bandingkan hasil dengan PDF asli. Klik blok untuk membuka halaman sumber dan kontrol edit.
-4. **Rapikan struktur.** Koreksi teks, pisah di posisi kursor, gabung paragraf, tentukan tingkat heading, atau mulai bab baru. Kandidat header/footer tetap disertakan sampai Anda memilih **Kecualikan**; blok dapat dipulihkan.
+4. **Rapikan struktur.** Koreksi teks, pisah di posisi kursor, gabung paragraf, tentukan tingkat heading, atau mulai bab baru. Header/footer berulang dengan bukti kuat dikecualikan secara dapat dipulihkan dan dicatat; kandidat meragukan tetap disertakan. Gunakan laporan untuk meninjau atau memulihkan sekaligus. Blok dikecualikan disembunyikan dari bacaan; aktifkan **Tampilkan blok dikecualikan** untuk melihatnya.
 5. **Lengkapi metadata** judul, penulis, bahasa, identifier, dan sampul, lalu pilih **Buat EPUB → Unduh EPUB**.
 6. **Cadangkan proyek.** Ekspor `.aksara` untuk membawa PDF asli, struktur buku, dan koreksi ke browser/perangkat lain.
 
@@ -86,7 +95,7 @@ npm run preview
 | ---------------------- | ------------------------------------------------------------ |
 | `npm run dev`          | Menjalankan server pengembangan                              |
 | `npm run typecheck`    | Memeriksa tipe TypeScript                                    |
-| `npm test`             | Menjalankan 18 tes rekonstruksi, editor, dan struktur EPUB   |
+| `npm test`             | Menjalankan 38 tes rekonstruksi, editor, dan struktur EPUB   |
 | `npm run build`        | Menghasilkan situs statis di `dist/`                         |
 | `npm run preview`      | Menyajikan production build secara lokal                     |
 | `npm run test:e2e`     | Menguji alur nyata melalui Chromium/Playwright               |
@@ -129,10 +138,10 @@ Stack: **React · TypeScript · Vite · PDF.js · Web Workers · IndexedDB · ff
 
 ## Validasi dan kualitas
 
-- **18 tes inti** mencakup paragraf terpisah/terbungkus/lintas halaman, dialog, daftar, heading, scene break, header/footer, dua kolom, halaman kosong, karakter khusus, pemenggalan konservatif, editor, serta referensi EPUB.
-- **5 skenario browser** mencakup unggah hingga unduh EPUB, pembaca EPUB.js, autosave/reload, arsip proyek, checkpoint, keyboard, reduced motion, serta kegagalan penyimpanan dan PDF rusak.
+- **38 tes inti** mencakup paragraf terpisah/terbungkus/lintas halaman, dialog, daftar, heading, scene break, header/footer, dua kolom, halaman kosong, karakter khusus, pemenggalan konservatif, editor, serta referensi EPUB.
+- **6 skenario browser** mencakup unggah hingga unduh EPUB, pembaca EPUB.js, autosave/reload, arsip proyek, checkpoint, keyboard, reduced motion, serta kegagalan penyimpanan dan PDF rusak.
 - Pemeriksaan visual dilakukan pada desktop, tablet, dan viewport mobile 320/375 px, termasuk tema gelap.
-- **EPUBCheck 5.4.0** memvalidasi fixture sintetis dalam CI. Pemeriksaan ringan di browser adalah lapisan terpisah, bukan pengganti EPUBCheck.
+- **EPUBCheck 5.4.0** memvalidasi fixture sintetis dengan gambar, caption, heading dan daftar bernomor dalam CI. Pemeriksaan ringan di browser adalah lapisan terpisah, bukan pengganti EPUBCheck.
 - Workflow Pages memeriksa deployment publik dengan HTTP dan menjalankan smoke test alur konversi melalui browser.
 
 Catatan pemeriksaan dan hal yang belum diuji tersedia di [VERIFICATION.md](docs/VERIFICATION.md). Emulasi viewport belum menggantikan pengujian perangkat Chrome Android fisik atau audit WCAG menyeluruh.
@@ -157,24 +166,31 @@ Tidak ada API key atau secret konversi yang perlu disetel. Izin `pages: write` d
 
 ## Batas dukungan
 
-| Kasus                                        | Perilaku saat ini                                                                                 |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| PDF teks satu kolom                          | Target utama; tetap perlu tinjauan hasil                                                          |
-| PDF dua kolom                                | Urutan per kolom bila terdeteksi; ditandai untuk pemeriksaan                                      |
-| PDF pindaian / halaman tanpa teks            | Dilaporkan; OCR harus dilakukan di aplikasi lain                                                  |
-| Gambar isi, tabel, rumus, footnote           | Belum dipertahankan secara andal; bukan konversi isi lengkap                                      |
-| Header/footer dan nomor halaman              | Kandidat berdasarkan posisi/pengulangan; tidak dihapus otomatis                                   |
-| Pemenggalan kata                             | Soft hyphen dapat digabung; tanda hubung terlihat dipertahankan secara konservatif                |
-| Bookmark PDF                                 | Membantu label bab bila dapat dipetakan; tidak menjamin seluruh hierarki                          |
-| Buku sangat panjang                          | Hasil teks belum divirtualisasi; memori dan performa bergantung perangkat                         |
-| Teks vertikal, RTL, CJK atau layout campuran | Memerlukan pemeriksaan khusus; belum diuji menyeluruh                                             |
-| Undo/redo                                    | 30 snapshot selama sesi; koreksi terakhir tersimpan, riwayat sesi tidak dipulihkan setelah reload |
+| Kasus                                        | Perilaku saat ini                                                                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| PDF teks satu kolom                          | Target utama; tetap perlu tinjauan hasil                                                                                     |
+| PDF dua kolom                                | Urutan per kolom bila terdeteksi; ditandai untuk pemeriksaan                                                                 |
+| PDF pindaian / halaman tanpa teks            | Lapisan OCR yang sudah ada dapat diproses dan ditandai untuk tinjauan. OCR baru tidak tersedia                               |
+| Ilustrasi dan sampul                         | Area gambar umum diekstrak ke PNG, berdasarkan transformasi operator dan posisi pada sumber; tinjau penempatan serta caption |
+| Tabel, rumus, footnote                       | Belum direkonstruksi secara andal                                                                                            |
+| Header/footer dan nomor halaman              | Temuan kuat dikecualikan dengan audit; kandidat meragukan tetap disertakan dan semua dapat dipulihkan                        |
+| Pemenggalan kata                             | Soft hyphen dapat digabung; tanda hubung terlihat dipertahankan secara konservatif                                           |
+| Bookmark PDF                                 | Membantu label bab bila dapat dipetakan; tidak menjamin seluruh hierarki                                                     |
+| Buku sangat panjang                          | Editor menampilkan satu bagian ketika blok melebihi 500; memori dan performa tetap bergantung perangkat                      |
+| Teks vertikal, RTL, CJK atau layout campuran | Memerlukan pemeriksaan khusus; belum diuji menyeluruh                                                                        |
+| Undo/redo                                    | 30 snapshot selama sesi; koreksi terakhir tersimpan, riwayat sesi tidak dipulihkan setelah reload                            |
+
+### Batas pelestarian gambar
+
+Area gambar dirender satu halaman pada satu waktu lalu dipotong ke PNG, dengan sisi render maksimal 1.800 px dan maksimal 12 area per halaman. Ini mempertahankan penampilan area yang terlihat; byte/resolusi asli aset tidak dijamin. Mask dan operasi pengulangan yang belum ditangani dilaporkan. Area yang bersinggungan dengan teks juga ditandai karena dapat mengandung pengulangan teks dalam gambar dan paragraf.
+
+Pada PDF screenshot dengan lapisan OCR, gambar satu halaman tidak dimasukkan ulang sebagai ilustrasi agar EPUB tetap berisi teks reflowable. Foto/grafik yang menyatu di dalam screenshot belum dipisah. Ejaan sumber, termasuk ejaan historis, dipertahankan; aplikasi belum melakukan koreksi bahasa atau OCR ulang otomatis.
 
 ## Roadmap
 
-- Ekstraksi serta penempatan gambar dengan validasi referensi sumber.
+- Perluasan dukungan gambar mask, pengulangan, dan area dengan teks bertumpuk.
 - Perbaikan layout campuran, tabel, dan catatan kaki.
-- Virtualisasi pratinjau teks untuk buku panjang.
+- Virtualisasi lanjutan untuk bab individual yang sangat panjang.
 - Terjemahan dan ringkasan melalui OpenRouter setelah pengujian origin/CORS dan pengelolaan key sesi.
 - Eksplorasi PDF terjemahan dengan relayout teks yang benar, tanpa menjanjikan tampilan identik.
 

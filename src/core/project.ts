@@ -29,6 +29,23 @@ export async function importProject(file: File): Promise<ProjectRecord> {
     !Array.isArray(book.outline)
   )
     throw new Error("Format proyek Aksara tidak valid.");
+  const assetIds = new Set<string>();
+  for (const page of book.pages) {
+    if (!Array.isArray(page.items) || typeof page.number !== "number")
+      throw new Error("Halaman sumber tidak valid.");
+    for (const asset of page.images || []) {
+      if (
+        typeof asset.id !== "string" ||
+        assetIds.has(asset.id) ||
+        !["image/png", "image/jpeg"].includes(asset.type) ||
+        typeof asset.data !== "string" ||
+        asset.data.length > 28 * 1024 * 1024 ||
+        !/^[A-Za-z0-9+/]*={0,2}$/.test(asset.data)
+      )
+        throw new Error("Aset gambar proyek tidak valid.");
+      assetIds.add(asset.id);
+    }
+  }
   for (const c of book.chapters) {
     if (
       typeof c.id !== "string" ||

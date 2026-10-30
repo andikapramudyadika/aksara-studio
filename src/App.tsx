@@ -45,7 +45,7 @@ import {
   MoveRight,
   Info,
 } from "lucide-react";
-import type { Book, Block, BlockKind } from "./core/model";
+import type { Book, Block, BlockKind, ProjectSummary } from "./core/model";
 import { allBlocks, createBook } from "./core/model";
 import {
   listProjects,
@@ -60,7 +60,9 @@ import {
   mergeBlock,
   startChapter,
   kindLabels,
+  setRunningExcluded,
 } from "./core/editor";
+import { qualitySummary, issueNeedsReview } from "./core/quality";
 import { download, safeName } from "./core/files";
 const PdfPreview = lazy(() => import("./components/PdfPreview"));
 const EpubReader = lazy(() => import("./components/EpubReader"));
@@ -210,7 +212,7 @@ function Steps({ stage }: { stage: Stage }) {
 function App() {
   const [route, setRoute] = useState<Route>(getRoute),
     [stage, setStage] = useState<Stage>("analyse"),
-    [projects, setProjects] = useState<Book[]>([]),
+    [projects, setProjects] = useState<ProjectSummary[]>([]),
     [book, setBook] = useState<Book>(),
     [pdf, setPdf] = useState<Blob>(),
     [busy, setBusy] = useState(false),
@@ -247,7 +249,10 @@ function App() {
     [reader, setReader] = useState(false),
     [exportBusy, setExportBusy] = useState(false),
     [exportOk, setExportOk] = useState(false),
-    [deleteId, setDeleteId] = useState<string>();
+    [deleteId, setDeleteId] = useState<string>(),
+    [issueFilter, setIssueFilter] = useState("attention"),
+    [shownChapter, setShownChapter] = useState<string>(),
+    [showExcluded, setShowExcluded] = useState(false);
   const input = useRef<HTMLInputElement>(null),
     projectInput = useRef<HTMLInputElement>(null),
     cancel = useRef<AbortController | undefined>(undefined),
@@ -303,7 +308,7 @@ function App() {
       .then(() => {
         if (activeId.current === next.id)
           setSaveStatus("Tersimpan di perangkat");
-        void refresh();
+        if (next.status !== "analysing") void refresh();
       })
       .catch((e) => {
         setSaveStatus("Belum tersimpan");
@@ -380,6 +385,10 @@ function App() {
     const controller = new AbortController();
     cancel.current = controller;
     let checkpoint = structuredClone(current);
+    if (checkpoint.engineVersion !== 2) {
+      checkpoint.pages = [];
+      checkpoint.engineVersion = 2;
+    }
     setProgress({
       page: checkpoint.pages.length,
       total: 0,
@@ -396,7 +405,11 @@ function App() {
         controller.signal,
         async (p, total) => {
           checkpoint.pages.push(p);
-          setProgress({ page: p.number, total, label: "Mengekstrak teks" });
+          setProgress({
+            page: p.number,
+            total,
+            label: "Mengekstrak teks dan gambar",
+          });
           setBook({ ...checkpoint, pages: [...checkpoint.pages] });
           await persist(checkpoint, file);
         },
@@ -408,6 +421,7 @@ function App() {
       setProgress((p) => ({ ...p, label: "Menyusun paragraf dan bab" }));
       const result = await analyse(checkpoint, controller.signal);
       setBook(result);
+      setShownChapter(undefined);
       await persist(result, file);
       setStage("edit");
     } catch (e) {
@@ -517,8 +531,27 @@ function App() {
   }
   const blocks = book ? allBlocks(book) : [];
   const selectedBlock = blocks.find((b) => b.id === selected);
+  const blockMap = new Map(blocks.map((b) => [b.id, b]));
+  const quality = book ? qualitySummary(book) : undefined;
+  const pendingIssues = book
+    ? book.issues.filter((i) => issueNeedsReview(book, i, blockMap))
+    : [];
+  const assets = new Map(
+    book?.pages.flatMap((p) => p.images || []).map((a) => [a.id, a]) || [],
+  );
+  const visibleChapters = book
+    ? blocks.length > 500
+      ? [
+          book.chapters.find(
+            (c) =>
+              c.id === shownChapter ||
+              (!shownChapter && c.blocks.some((b) => b.id === selected)),
+          ) || book.chapters[0],
+        ].filter(Boolean)
+      : book.chapters
+    : [];
   const wordCount = blocks
-    .filter((b) => !b.excluded)
+    .filter((b) => !b.excluded && b.kind !== "figure")
     .reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
   const selectBlock = (b: Block) => {
     setSelected(b.id);
@@ -528,7 +561,11 @@ function App() {
   const jump = (id?: string, p?: number) => {
     if (p) setPage(p);
     if (id) {
+      setShownChapter(
+        book?.chapters.find((c) => c.blocks.some((b) => b.id === id))?.id,
+      );
       setSelected(id);
+      if (blocks.find((b) => b.id === id)?.excluded) setShowExcluded(true);
       setStage("edit");
       setMobileTab("epub");
       setTimeout(
@@ -544,6 +581,7 @@ function App() {
     }
   };
   const blockView = (b: Block) => {
+    if (b.excluded && !showExcluded) return null;
     const props = {
       id: "block-" + b.id,
       key: b.id,
@@ -561,7 +599,20 @@ function App() {
     };
     return (
       <div {...props}>
-        {b.kind === "heading" ? (
+        {b.kind === "figure" ? (
+          <figure>
+            {b.assetId && assets.has(b.assetId) ? (
+              <img
+                loading="lazy"
+                src={`data:${assets.get(b.assetId)!.type};base64,${assets.get(b.assetId)!.data}`}
+                alt={b.text || `Ilustrasi halaman ${b.sources[0]?.page}`}
+              />
+            ) : (
+              <p className="notice warning">Aset gambar belum tersedia</p>
+            )}
+            {b.text && <figcaption>{b.text}</figcaption>}
+          </figure>
+        ) : b.kind === "heading" ? (
           <h2 className={"level-" + (b.level || 1)}>{b.text}</h2>
         ) : b.kind === "quote" ? (
           <blockquote>{b.text}</blockquote>
@@ -621,7 +672,7 @@ function App() {
           </button>
           <div className="sidebar-footer">
             <span>AKSARA STUDIO</span>
-            <span>v1.0</span>
+            <span>v1.1</span>
           </div>
         </div>
       </aside>
@@ -874,7 +925,7 @@ function App() {
                     <div>
                       <strong>{p.title}</strong>
                       <span>
-                        {p.pages.length} halaman ·{" "}
+                        {p.pageCount} halaman ·{" "}
                         {p.status === "analysing"
                           ? "Analisis belum selesai"
                           : "Siap dirapikan"}
@@ -962,7 +1013,7 @@ function App() {
                       <div>
                         <strong>{p.title}</strong>
                         <span>
-                          {p.pages.length} halaman · {p.chapters.length} bab ·{" "}
+                          {p.pageCount} halaman · {p.chapterCount} bab ·{" "}
                           {new Date(p.updatedAt).toLocaleDateString("id-ID")}
                         </span>
                       </div>
@@ -1214,11 +1265,36 @@ function App() {
               {stage !== "analyse" && (
                 <button className="text-btn" onClick={() => setIssues(!issues)}>
                   <AlertTriangle size={15} />
-                  {book.issues.length} catatan tinjauan
+                  {pendingIssues.length} catatan tinjauan
                   <ChevronDown size={14} />
                 </button>
               )}
             </div>
+            {stage !== "analyse" && (book.engineVersion || 1) < 2 && pdf && (
+              <div className="notice upgrade-notice">
+                <Info size={20} />
+                <div>
+                  <strong>Mesin rekonstruksi baru tersedia</strong>
+                  <p>
+                    Buat salinan dengan analisis baru untuk memperbaiki bab,
+                    paragraf, dan gambar. Koreksi proyek ini tetap tersimpan.
+                  </p>
+                  <button
+                    className="btn secondary"
+                    onClick={() => {
+                      const next = createBook(book.filename);
+                      next.title = book.title;
+                      next.author = book.author;
+                      next.language = book.language;
+                      next.cover = book.cover;
+                      void run(pdf, next);
+                    }}
+                  >
+                    Analisis ulang sebagai salinan
+                  </button>
+                </div>
+              </div>
+            )}
             {stage === "analyse" && (
               <div className="analysis-panel">
                 <div className="analysis-icon">
@@ -1281,8 +1357,9 @@ function App() {
                   )}
                 </div>
                 <small>
-                  PDF teks satu kolom didukung utama. OCR dan pelestarian gambar
-                  belum tersedia.
+                  PDF teks satu kolom didukung utama. OCR baru belum tersedia.
+                  Gambar yang dapat ditempatkan diekstrak; periksa laporan
+                  keterbatasan.
                 </small>
               </div>
             )}
@@ -1299,9 +1376,106 @@ function App() {
                   </button>
                 </div>
                 <p>
-                  Catatan tetap ditampilkan agar keterbatasan hasil terlihat.
-                  Kandidat header/footer belum dihapus otomatis.
+                  Header/footer berulang yang kuat terdeteksi dikecualikan
+                  dengan catatan dan dapat dipulihkan. Kandidat meragukan tetap
+                  disertakan. Tinjau posisi gambar dan pemetaan judul terhadap
+                  sumber.
                 </p>
+                {quality && (
+                  <>
+                    <div className="quality-grid">
+                      <div>
+                        <strong>{book.chapters.length}</strong>
+                        <span>bagian / bab</span>
+                      </div>
+                      <div>
+                        <strong>{quality.figures.length}</strong>
+                        <span>gambar disertakan</span>
+                      </div>
+                      <div>
+                        <strong>
+                          {quality.running.filter((b) => b.excluded).length}
+                        </strong>
+                        <span>header/footer dikecualikan</span>
+                      </div>
+                      <div>
+                        <strong>{quality.missingItems}</strong>
+                        <span>item sumber belum terwakili</span>
+                      </div>
+                    </div>
+                    <p className="muted">
+                      Cakupan saat analisis:{" "}
+                      {book.analysis
+                        ? `${book.analysis.coveredItems.toLocaleString("id-ID")} dari ${book.analysis.sourceItems.toLocaleString("id-ID")} item teks sumber`
+                        : "belum tersedia pada proyek lama"}
+                      . Angka ini memeriksa referensi sumber, bukan jaminan
+                      kesempurnaan isi.
+                    </p>
+                    {quality.running.length > 0 && (
+                      <div className="review-actions">
+                        <button
+                          className="btn secondary"
+                          onClick={() => update(setRunningExcluded(book, true))}
+                        >
+                          Kecualikan semua kandidat header/footer
+                        </button>
+                        <button
+                          className="btn secondary"
+                          onClick={() =>
+                            update(setRunningExcluded(book, false))
+                          }
+                        >
+                          Pulihkan semua header/footer
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+                <label className="issue-filter">
+                  Tampilkan catatan
+                  <select
+                    value={issueFilter}
+                    onChange={(e) => setIssueFilter(e.target.value)}
+                  >
+                    <option value="attention">Perlu ditinjau</option>
+                    <option value="all">
+                      Semua catatan (termasuk informasi)
+                    </option>
+                    <option value="running">Header / footer</option>
+                    <option value="heading">Judul dan bab</option>
+                    <option value="image">Gambar</option>
+                    <option value="toc">Daftar isi</option>
+                    <option value="quality">Kualitas teks</option>
+                    <option value="ocr">Lapisan OCR</option>
+                    <option value="layout">Layout</option>
+                    <option value="empty">Tanpa teks</option>
+                  </select>
+                </label>
+                {quality && quality.figures.length > 0 && (
+                  <details className="figure-review">
+                    <summary>
+                      {quality.figures.length} gambar dari PDF sumber
+                    </summary>
+                    {quality.figures.map((b) => (
+                      <button
+                        key={b.id}
+                        className="issue-row"
+                        onClick={() => jump(b.id, b.sources[0]?.page)}
+                      >
+                        <span className="tag">Hlm. {b.sources[0]?.page}</span>
+                        <span>{b.text || "Ilustrasi dari halaman sumber"}</span>
+                        <ArrowUpRight size={15} />
+                      </button>
+                    ))}
+                  </details>
+                )}
+                {issueFilter === "attention" && !pendingIssues.length && (
+                  <div className="notice">
+                    <CheckCircle2 size={18} />
+                    Tidak ada peringatan struktural tersisa. Tetap tinjau isi
+                    dan gambar terhadap PDF sumber.
+                  </div>
+                )}
                 {!book.issues.length ? (
                   <div className="notice">
                     <CheckCircle2 size={18} />
@@ -1309,23 +1483,31 @@ function App() {
                     dengan sumber.
                   </div>
                 ) : (
-                  book.issues.map((i) => (
-                    <button
-                      key={i.id}
-                      className="issue-row"
-                      onClick={() => jump(i.blockId, i.page)}
-                    >
-                      <span className="tag">Hlm. {i.page}</span>
-                      <span>
-                        {i.message}
-                        {i.blockId &&
-                        blocks.find((b) => b.id === i.blockId)?.excluded
-                          ? " (Dikecualikan)"
-                          : ""}
-                      </span>
-                      <ArrowUpRight size={15} />
-                    </button>
-                  ))
+                  book.issues
+                    .filter(
+                      (i) =>
+                        issueFilter === "all" ||
+                        (issueFilter === "attention"
+                          ? issueNeedsReview(book, i, blockMap)
+                          : i.kind === issueFilter),
+                    )
+                    .map((i) => (
+                      <button
+                        key={i.id}
+                        className="issue-row"
+                        onClick={() => jump(i.blockId, i.page)}
+                      >
+                        <span className="tag">Hlm. {i.page}</span>
+                        <span>
+                          {i.message}
+                          {i.blockId &&
+                          blocks.find((b) => b.id === i.blockId)?.excluded
+                            ? " (Dikecualikan)"
+                            : ""}
+                        </span>
+                        <ArrowUpRight size={15} />
+                      </button>
+                    ))
                 )}
               </section>
             )}
@@ -1395,6 +1577,14 @@ function App() {
                         <MoreHorizontal size={19} />
                       </summary>
                       <div>
+                        <label className="review-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={showExcluded}
+                            onChange={(e) => setShowExcluded(e.target.checked)}
+                          />
+                          Tampilkan blok dikecualikan
+                        </label>
                         <label>
                           Jarak baris
                           <input
@@ -1564,7 +1754,31 @@ function App() {
                           className="reading-inner"
                           style={{ maxWidth: readWidth }}
                         >
-                          {book.chapters.map((c) => (
+                          {blocks.length > 500 && (
+                            <div className="chapter-reader-nav">
+                              <label>
+                                Bagian yang ditinjau
+                                <select
+                                  value={visibleChapters[0]?.id || ""}
+                                  onChange={(e) => {
+                                    setShownChapter(e.target.value);
+                                    setSelected(undefined);
+                                  }}
+                                >
+                                  {book.chapters.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.title}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <small>
+                                Satu bagian ditampilkan agar buku panjang tetap
+                                responsif.
+                              </small>
+                            </div>
+                          )}
+                          {visibleChapters.map((c) => (
                             <section key={c.id}>
                               {c.blocks.map(blockView)}
                             </section>
@@ -1629,7 +1843,13 @@ function App() {
                           }
                         >
                           {Object.entries(kindLabels).map(([k, v]) => (
-                            <option value={k} key={k}>
+                            <option
+                              value={k}
+                              key={k}
+                              disabled={
+                                k === "figure" && !selectedBlock.assetId
+                              }
+                            >
                               {v}
                             </option>
                           ))}
@@ -1954,9 +2174,9 @@ function App() {
                     <div className="notice warning">
                       <AlertTriangle size={18} />
                       <span>
-                        {book.issues.length} catatan tinjauan masih tercatat.
-                        Gambar dan halaman tanpa teks belum terwakili. Periksa
-                        laporan sebelum membagikan.
+                        {pendingIssues.length} catatan tinjauan masih tercatat.
+                        Periksa pemetaan bab, gambar, dan halaman tanpa teks
+                        pada laporan sebelum membagikan.
                       </span>
                     </div>
                   )}
@@ -2087,8 +2307,8 @@ function App() {
           <Info size={18} />
           <span>
             Dukungan utama: PDF teks satu kolom. Kolom kompleks perlu ditinjau.
-            Gambar, tabel, rumus, dan catatan kaki belum dapat dipertahankan
-            secara andal.
+            Gambar yang dapat ditempatkan diekstrak. Tabel, rumus, catatan kaki,
+            dan gambar kompleks tetap perlu ditinjau.
           </span>
         </div>
         <button className="btn primary" onClick={() => setHelp(false)}>

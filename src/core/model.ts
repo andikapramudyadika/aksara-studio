@@ -7,6 +7,20 @@ export interface TextItem {
   width: number;
   height: number;
   font: string;
+  baseline?: number;
+  bold?: boolean;
+  italic?: boolean;
+}
+export interface ImageAsset {
+  id: string;
+  data: string;
+  type: "image/png" | "image/jpeg";
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  role?: "cover" | "figure";
 }
 export interface SourcePage {
   number: number;
@@ -15,6 +29,9 @@ export interface SourcePage {
   rotation: number;
   items: TextItem[];
   imageCount: number;
+  images?: ImageAsset[];
+  imageWarnings?: string[];
+  ocrLayer?: boolean;
 }
 export interface SourceRef {
   page: number;
@@ -22,6 +39,7 @@ export interface SourceRef {
   y: number;
   width: number;
   height: number;
+  itemIndices?: number[];
 }
 export interface Block {
   id: string;
@@ -31,6 +49,8 @@ export interface Block {
   order: number;
   sources: SourceRef[];
   level?: number;
+  assetId?: string;
+  confidence?: number;
   excluded?: boolean;
   flags: string[];
 }
@@ -43,7 +63,15 @@ export interface Issue {
   id: string;
   page: number;
   blockId?: string;
-  kind: "empty" | "layout" | "image" | "running" | "heading";
+  kind:
+    | "empty"
+    | "layout"
+    | "image"
+    | "running"
+    | "heading"
+    | "quality"
+    | "ocr"
+    | "toc";
   message: string;
 }
 export interface Audit {
@@ -67,8 +95,26 @@ export interface Book {
   chapters: Chapter[];
   issues: Issue[];
   audit: Audit[];
-  outline: { title: string; page: number }[];
+  outline: { title: string; page: number; level?: number }[];
   cover?: { data: string; type: string };
+  engineVersion?: number;
+  analysis?: {
+    sourceItems: number;
+    coveredItems: number;
+    duplicateItems: number;
+    missingItems: number;
+    images: number;
+    excludedRunning: number;
+  };
+}
+export interface ProjectSummary {
+  id: string;
+  title: string;
+  filename: string;
+  status: Book["status"];
+  updatedAt: string;
+  pageCount: number;
+  chapterCount: number;
 }
 export interface ProjectRecord {
   book: Book;
@@ -80,8 +126,12 @@ export function createBook(filename: string): Book {
   const id = uid();
   return {
     version: 1,
+    engineVersion: 2,
     id,
-    title: filename.replace(/\.pdf$/i, ""),
+    title: filename
+      .replace(/\.pdf$/i, "")
+      .replace(/_+/g, " ")
+      .trim(),
     author: "",
     language: "id",
     identifier: `urn:uuid:${id}`,

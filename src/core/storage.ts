@@ -1,5 +1,5 @@
 import { openDB } from "idb";
-import type { Book, ProjectRecord } from "./model";
+import type { Book, ProjectRecord, ProjectSummary } from "./model";
 const db = () =>
   openDB("aksara-studio", 1, {
     upgrade(db) {
@@ -13,12 +13,24 @@ export async function saveProject(book: Book, pdf?: Blob) {
     : ((await database.get("projects", book.id)) as ProjectRecord | undefined);
   await database.put("projects", { book, pdf: pdf ?? previous?.pdf });
 }
-export async function listProjects(): Promise<Book[]> {
+export async function listProjects(): Promise<ProjectSummary[]> {
   const database = await db();
-  const all = (await database.getAll("projects")) as ProjectRecord[];
-  return all
-    .map((p) => p.book)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const summaries: ProjectSummary[] = [];
+  let cursor = await database.transaction("projects").store.openCursor();
+  while (cursor) {
+    const { book } = cursor.value as ProjectRecord;
+    summaries.push({
+      id: book.id,
+      title: book.title,
+      filename: book.filename,
+      status: book.status,
+      updatedAt: book.updatedAt,
+      pageCount: book.pages.length,
+      chapterCount: book.chapters.length,
+    });
+    cursor = await cursor.continue();
+  }
+  return summaries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 export async function loadProject(
   id: string,

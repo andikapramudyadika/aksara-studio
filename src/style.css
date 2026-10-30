@@ -2676,3 +2676,154 @@ textarea {
     animation: none;
   }
 }
+/* Structured source review */
+.book-block.figure figure {
+  margin: 12px 0;
+}
+.book-block.figure img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: auto;
+  border-radius: 3px;
+}
+.book-block.figure figcaption {
+  font-size: 0.8em;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 10px;
+}
+.book-block .list-block {
+  padding-left: 0;
+}
+.book-block .list-block::before {
+  content: none;
+}
+.quality-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  border-block: 1px solid var(--border);
+  padding: 18px 0;
+  margin: 20px 0 10px;
+}
+.quality-grid strong {
+  display: block;
+  font-family: "Lora", Georgia, serif;
+  font-size: 25px;
+  font-weight: 400;
+}
+.quality-grid span {
+  font-size: 10px;
+  color: var(--muted);
+  display: block;
+  margin-top: 6px;
+}
+.review-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+.issue-filter {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 11px;
+  margin: 20px 0;
+}
+.issue-filter select {
+  max-width: 260px;
+  min-height: 44px;
+}
+.issues-panel {
+  max-height: 560px;
+  overflow: auto;
+}
+.chapter-reader-nav {
+  font-family: "DM Sans", sans-serif;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+  margin-bottom: 22px;
+}
+.chapter-reader-nav label {
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+  font-size: 11px;
+}
+.chapter-reader-nav select {
+  max-width: 100%;
+  font-size: 12px;
+  min-height: 44px;
+  width: 100%;
+  white-space: normal;
+}
+.chapter-reader-nav small {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-top: 9px;
+}
+.upgrade-notice p {
+  font-size: 11px;
+  margin: 8px 0 14px;
+}
+.upgrade-notice strong {
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .quality-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  .quality-grid span {
+    font-size: 9px;
+  }
+  .review-actions .btn {
+    white-space: normal;
+    text-align: left;
+    width: 100%;
+  }
+  .issue-filter {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .issue-filter select {
+    width: 100%;
+    max-width: 100%;
+  }
+  .issues-panel {
+    max-height: 65dvh;
+  }
+  .chapter-reader-nav select {
+    font-size: 12px;
+  }
+}
+.figure-review {
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+  padding: 15px 0;
+}
+.figure-review summary {
+  cursor: pointer;
+  min-height: 30px;
+}
+.figure-review .issue-row {
+  font-size: 10px;
+}
+.reading-options label.review-checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  font-size: 11px;
+}
+.review-checkbox input {
+  min-height: 20px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--teal);
+}

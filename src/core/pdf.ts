@@ -1,6 +1,7 @@
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import type { Book, SourcePage } from "./model";
+import { extractImages } from "./images";
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 export { pdfjs };
 export function pdfOptions() {
@@ -35,7 +36,10 @@ export async function extractPdf(
     const doc = await task.promise;
     onDocument(doc.numPages);
     const outline: Book["outline"] = [];
-    const walk = async (nodes: Awaited<ReturnType<typeof doc.getOutline>>) => {
+    const walk = async (
+      nodes: Awaited<ReturnType<typeof doc.getOutline>>,
+      depth = 0,
+    ) => {
       for (const node of nodes || []) {
         try {
           const dest =
@@ -47,12 +51,16 @@ export async function extractPdf(
               typeof dest[0] === "number"
                 ? dest[0] + 1
                 : (await doc.getPageIndex(dest[0])) + 1;
-            outline.push({ title: node.title, page });
+            outline.push({
+              title: node.title,
+              page,
+              level: Math.min(3, depth + 1),
+            });
           }
         } catch {
           /* Unresolvable bookmarks do not interrupt extraction. */
         }
-        if (node.items) await walk(node.items);
+        if (node.items) await walk(node.items, depth + 1);
       }
     };
     await walk(await doc.getOutline());
@@ -71,6 +79,16 @@ export async function extractPdf(
       const items = content.items.flatMap((item) => {
         if (!("str" in item)) return [];
         const t = pdfjs.Util.transform(viewport.transform, item.transform);
+        let fontLabel =
+          item.fontName +
+          " " +
+          (content.styles[item.fontName]?.fontFamily || "");
+        try {
+          if (page.commonObjs.has(item.fontName))
+            fontLabel += " " + (page.commonObjs.get(item.fontName)?.name || "");
+        } catch {
+          /* Font hints remain optional; coordinates and text are retained. */
+        }
         return [
           {
             text: item.str,
@@ -79,9 +97,13 @@ export async function extractPdf(
             width: item.width,
             height: Math.hypot(t[2], t[3]),
             font: item.fontName,
+            baseline: t[5],
+            bold: /bold|black|heavy|britannic/i.test(fontLabel),
+            italic: /italic|oblique/i.test(fontLabel),
           },
         ];
       });
+      const assets = await extractImages(page, ops, n, items, signal);
       await onPage(
         {
           number: n,
@@ -90,6 +112,9 @@ export async function extractPdf(
           rotation: viewport.rotation,
           items,
           imageCount: ops.fnArray.filter((op) => imageOps.includes(op)).length,
+          images: assets.images,
+          imageWarnings: assets.warnings,
+          ocrLayer: assets.ocrLayer,
         },
         doc.numPages,
       );

@@ -70,7 +70,7 @@ jobs:
       - name: Verify conversion, EPUB download and reader on Pages
         env:
           TEST_BASE_URL: ${{ needs.deploy.outputs.page_url }}
-        run: npm run test:e2e -- --grep "real PDF upload"
+        run: npm run test:e2e -- --grep "real PDF upload|conversion retains images"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

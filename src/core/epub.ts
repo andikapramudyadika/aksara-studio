@@ -1,5 +1,7 @@
 import { zipSync, strToU8 } from "fflate";
 import type { Book, Block } from "./model";
+import { listMarker } from "./structure";
+import { qualitySummary } from "./quality";
 export const escapeXml = (s: string) =>
   s
     .replace(
@@ -15,7 +17,7 @@ export const escapeXml = (s: string) =>
     )
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
 const xml = '<?xml version="1.0" encoding="utf-8"?>';
-const blockXml = (b: Block) => {
+const blockXml = (b: Block, assets: Map<string, string>) => {
   const t = escapeXml(b.text),
     id = `b-${b.id.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   switch (b.kind) {
@@ -25,15 +27,68 @@ const blockXml = (b: Block) => {
     }
     case "quote":
       return `<blockquote id="${id}"><p>${t}</p></blockquote>`;
-    case "list":
-      return `<ul id="${id}"><li>${t.replace(/^(?:[•▪●–-]|\d+[.)]|[a-z][.)])\s+/, "")}</li></ul>`;
+    case "figure": {
+      const path = b.assetId ? assets.get(b.assetId) : undefined;
+      if (!path)
+        throw new Error(
+          "Aset gambar belum tersedia. Periksa laporan atau kecualikan blok gambar tersebut.",
+        );
+      return `<figure id="${id}"><img src="${path}" alt="${t || "Ilustrasi dari halaman " + b.sources[0]?.page}"/>${t ? `<figcaption>${t}</figcaption>` : ""}</figure>`;
+    }
     case "scene":
       return `<p class="scene" id="${id}">${t}</p>`;
     default:
       return `<p id="${id}">${t}</p>`;
   }
 };
+function serializeBlocks(blocks: Block[], assets: Map<string, string>) {
+  let out = "";
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.kind !== "list") {
+      out += blockXml(b, assets) + "\n";
+      continue;
+    }
+    const marker = listMarker(b.text);
+    const ordered = !!marker?.ordered,
+      style = marker?.style || "1",
+      tag = ordered ? "ol" : "ul";
+    out += `<${tag}${ordered ? ` start="${marker?.ordinal || 1}" type="${style}"` : ""}>`;
+    let first = true;
+    while (i < blocks.length && blocks[i].kind === "list") {
+      const current = blocks[i],
+        m = listMarker(current.text);
+      if (!!m?.ordered !== ordered || (m?.style || "1") !== style) break;
+      const id = "b-" + current.id.replace(/[^a-zA-Z0-9_-]/g, "");
+      out += `<li id="${id}"${ordered && m?.ordinal && !first ? ` value="${m.ordinal}"` : ""}>${escapeXml(m?.body || current.text)}</li>`;
+      first = false;
+      i++;
+    }
+    out += `</${tag}>\n`;
+    i--;
+  }
+  return out;
+}
 export function exportEpub(book: Book): Uint8Array {
+  const quality = qualitySummary(book);
+  if (quality.missingAssets.length)
+    throw new Error(
+      `${quality.missingAssets.length} gambar belum memiliki aset. Tinjau atau kecualikan sebelum ekspor.`,
+    );
+  if (quality.missingItems || quality.duplicateItems)
+    throw new Error(
+      "Cakupan teks sumber bermasalah. Tinjau laporan analisis sebelum ekspor.",
+    );
+  if (
+    !book.chapters.some((c) =>
+      c.blocks.some(
+        (b) => !b.excluded && b.kind !== "figure" && /[\p{L}]{2}/u.test(b.text),
+      ),
+    )
+  )
+    throw new Error(
+      "Belum ada teks untuk EPUB reflowable. Halaman pindaian memerlukan OCR.",
+    );
   const files: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {
     mimetype: [strToU8("application/epub+zip"), { level: 0 }],
   };
@@ -49,6 +104,21 @@ export function exportEpub(book: Book): Uint8Array {
     : "id";
   const doc = (title: string, body: string) =>
     `${xml}<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${lang}" xml:lang="${lang}"><head><title>${escapeXml(title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body>${body}</body></html>`;
+  const assets = new Map<string, string>();
+  const used = new Set(quality.figures.map((b) => b.assetId));
+  for (const image of book.pages.flatMap((p) => p.images || [])) {
+    if (!used.has(image.id) || assets.has(image.id)) continue;
+    if (
+      !["image/png", "image/jpeg"].includes(image.type) ||
+      !/^[A-Za-z0-9+/]*={0,2}$/.test(image.data)
+    )
+      throw new Error("Format aset gambar tidak valid.");
+    const path = `assets/image-${assets.size + 1}.${image.type === "image/jpeg" ? "jpg" : "png"}`;
+    assets.set(image.id, path);
+    files["EPUB/" + path] = Uint8Array.from(atob(image.data), (c) =>
+      c.charCodeAt(0),
+    );
+  }
   const chapters = book.chapters.filter((c) =>
     c.blocks.some((b) => !b.excluded),
   );
@@ -88,17 +158,17 @@ export function exportEpub(book: Book): Uint8Array {
   );
   put(
     "EPUB/style.css",
-    "body{font-family:Georgia,serif;line-height:1.65;margin:5%;color:#242925}p{margin:0 0 1em}h1,h2,h3,h4,h5,h6{line-height:1.25;break-after:avoid}h1{margin-top:1.5em}img,svg{max-width:100%;height:auto}.cover{display:block;margin:auto;width:100%}.scene{text-align:center;letter-spacing:.3em}blockquote{margin:1em 1.5em}li{margin-bottom:.5em}a{color:inherit}",
+    "body{font-family:Georgia,serif;line-height:1.65;margin:5%;color:#242925}p{margin:0 0 1em}h1,h2,h3,h4,h5,h6{line-height:1.25;break-after:avoid}h1{margin-top:1.5em}img,svg{max-width:100%;height:auto}.cover{display:block;margin:auto;width:100%}.scene{text-align:center;letter-spacing:.3em}blockquote{margin:1em 1.5em}li{margin-bottom:.5em}figure{margin:1.5em 0;break-inside:avoid}figcaption{font-size:.85em;line-height:1.5;margin-top:.5em}a{color:inherit}",
   );
   chapters.forEach((c, i) =>
     put(
       `EPUB/chapter-${i + 1}.xhtml`,
       doc(
         c.title,
-        `<section epub:type="chapter">${c.blocks
-          .filter((b) => !b.excluded)
-          .map(blockXml)
-          .join("\n")}</section>`,
+        `<section epub:type="chapter">${serializeBlocks(
+          c.blocks.filter((b) => !b.excluded),
+          assets,
+        )}</section>`,
       ),
     ),
   );
@@ -122,7 +192,7 @@ export function exportEpub(book: Book): Uint8Array {
   );
   put(
     "EPUB/package.opf",
-    `${xml}<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="${lang}"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${escapeXml(book.identifier)}</dc:identifier><dc:title>${escapeXml(book.title)}</dc:title><dc:creator>${escapeXml(book.author || "Tidak diketahui")}</dc:creator><dc:language>${lang}</dc:language><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/, "Z")}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="css" href="style.css" media-type="text/css"/><item id="cover-image" href="${imageName}" media-type="${imageType}" properties="cover-image"/><item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"${imageType === "image/svg+xml" ? ' properties="svg"' : ""}/>${chapters.map((_, i) => `<item id="c${i + 1}" href="chapter-${i + 1}.xhtml" media-type="application/xhtml+xml"/>`).join("")}</manifest><spine><itemref idref="cover"/>${chapters.map((_, i) => `<itemref idref="c${i + 1}"/>`).join("")}</spine></package>`,
+    `${xml}<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="${lang}"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${escapeXml(book.identifier)}</dc:identifier><dc:title>${escapeXml(book.title)}</dc:title><dc:creator>${escapeXml(book.author || "Tidak diketahui")}</dc:creator><dc:language>${lang}</dc:language><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/, "Z")}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="css" href="style.css" media-type="text/css"/><item id="cover-image" href="${imageName}" media-type="${imageType}" properties="cover-image"/>${[...assets].map(([, path], i) => `<item id="img${i}" href="${path}" media-type="${path.endsWith(".jpg") ? "image/jpeg" : "image/png"}"/>`).join("")}<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"${imageType === "image/svg+xml" ? ' properties="svg"' : ""}/>${chapters.map((_, i) => `<item id="c${i + 1}" href="chapter-${i + 1}.xhtml" media-type="application/xhtml+xml"/>`).join("")}</manifest><spine><itemref idref="cover"/>${chapters.map((_, i) => `<itemref idref="c${i + 1}"/>`).join("")}</spine></package>`,
   );
   return zipSync(files, { level: 6 });
 }
