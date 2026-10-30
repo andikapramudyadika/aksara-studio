@@ -16,6 +16,7 @@ Lingkungan: Node.js 24, Chromium headless Linux melalui Playwright. Semua data u
 - Build `BASE_PATH=/aksara-studio/ npm run build` disajikan melalui HTTP statis di `/aksara-studio/`. Skenario unggah PDF → edit → unduh EPUB → pembaca → reload proyek lulus pada subpath tersebut; membuktikan jalur aset dan worker yang dipakai skenario itu.
 - EPUBCheck **5.4.0** dijalankan pada EPUB hasil download browser serta fixture sintetis (karakter khusus dan heading navigasi). Hasil: **0 fatal, 0 error, 0 warning, 0 info**.
 - Pemeriksaan ringan browser memvalidasi XML dan referensi, terpisah dari EPUBCheck Java. Workflow Pages juga membuat fixture dan menjalankan EPUBCheck.
+- Deployment publik GitHub Pages berhasil: https://andikapramudyadika.github.io/aksara-studio/. HTTP halaman, JavaScript, dan CSS mengembalikan 200. Job **build**, **deploy**, dan **Verify public Pages** lulus pada [workflow run 41008028758](https://github.com/andikapramudyadika/aksara-studio/actions/runs/41008028758). Smoke test Chromium pada origin produksi memverifikasi unggah PDF sintetis, rekonstruksi, edit/undo/redo, tab mobile, unduhan EPUB, pembaca EPUB.js, reload dan proyek tersimpan.
 
 ## Batas pengujian
 
@@ -23,4 +24,4 @@ Belum diuji pada perangkat Chrome Android fisik, keyboard virtual OS, pembaca EP
 
 Gambar isi, tabel, rumus, catatan kaki, serta OCR belum didukung andal; keterbatasan terlihat dalam UI dan README. Undo/redo riwayat sesi tidak disimpan lintas reload; koreksi terakhir tetap disimpan. Fitur AI belum diimplementasikan dan kompatibilitas OpenRouter pada origin Pages belum diuji.
 
-GitHub Actions workflow sudah disiapkan, tetapi deployment GitHub Pages pada akun pengguna belum dijalankan dari lingkungan ini. Panduan aktivasi tersedia di README.
+GitHub Pages sudah aktif dengan Source: GitHub Actions. Push perubahan aplikasi ke branch `main` menjalankan build, deployment, dan verifikasi publik otomatis. Panduan pengelolaan tersedia di README.
