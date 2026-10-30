@@ -158,7 +158,7 @@ export function exportEpub(book: Book): Uint8Array {
   );
   put(
     "EPUB/style.css",
-    "body{font-family:Georgia,serif;line-height:1.65;margin:5%;color:#242925}p{margin:0 0 1em}h1,h2,h3,h4,h5,h6{line-height:1.25;break-after:avoid}h1{margin-top:1.5em}img,svg{max-width:100%;height:auto}.cover{display:block;margin:auto;width:100%}.scene{text-align:center;letter-spacing:.3em}blockquote{margin:1em 1.5em}li{margin-bottom:.5em}figure{margin:1.5em 0;break-inside:avoid}figcaption{font-size:.85em;line-height:1.5;margin-top:.5em}a{color:inherit}",
+    "body{font-family:Georgia,serif;line-height:1.65;margin:5%;color:#242925}p{margin:0 0 1em}p::first-letter{font:inherit;float:none;text-transform:none}h1,h2,h3,h4,h5,h6{line-height:1.25;break-after:avoid}h1{margin-top:1.5em}img,svg{max-width:100%;height:auto}.cover{display:block;margin:auto;width:100%}.scene{text-align:center;letter-spacing:.3em}blockquote{margin:1em 1.5em}li{margin-bottom:.5em}figure{margin:1.5em 0;break-inside:avoid}figcaption{font-size:.85em;line-height:1.5;margin-top:.5em}a{color:inherit}",
   );
   chapters.forEach((c, i) =>
     put(

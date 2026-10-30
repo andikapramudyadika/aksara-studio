@@ -25,9 +25,13 @@ Aksara Studio membantu memindahkan buku dari halaman PDF yang statis ke format E
 
 Aplikasi ini berjalan sebagai situs statis. Tidak diperlukan backend konversi, akun aplikasi, API key, atau layanan berbayar. **Dukungan utama adalah PDF teks satu kolom**, dengan laporan untuk bagian yang perlu diperiksa.
 
-## Pembaruan versi 1.1
+## Pembaruan versi 1.1.1
 
-- Huruf awal besar (_drop cap_) disambung ke kata; nomor dan judul bab beberapa baris dikenali sebagai satu judul.
+Huruf awal paragraf menggunakan ukuran dan gaya teks normal pada editor dan EPUB, tanpa pembesaran dekoratif. Huruf awal yang terpisah pada PDF tetap disambungkan ke kata, dengan kapitalisasi sumber dipertahankan. Untuk EPUB yang sudah diunduh, ekspor ulang dari proyek agar gaya ini disertakan.
+
+### Perbaikan versi 1.1
+
+- Huruf awal besar (_drop cap_) dari PDF disambung ke kata dan ditampilkan sebagai teks normal; nomor dan judul bab beberapa baris dikenali sebagai satu judul.
 - Daftar isi sumber membantu pemetaan bab/subjudul; bookmark generik dan kata “Bab/bagian” pada kalimat biasa tidak langsung membuat bab baru.
 - Header/footer ganjil–genap dan per bagian dikenali. Temuan kuat dikecualikan dengan audit dan dapat dipulihkan; kandidat meragukan tetap disertakan.
 - Ilustrasi yang dapat ditempatkan diambil dari area gambar PDF, ditampilkan di editor, dan dikemas ke EPUB. Sampul asli digunakan bila tersedia.

@@ -1437,6 +1437,11 @@ textarea {
   line-height: inherit;
   margin: 0;
 }
+.book-block p::first-letter {
+  font: inherit;
+  float: none;
+  text-transform: none;
+}
 .book-block h2 {
   font-size: 1.6em;
   line-height: 1.35;

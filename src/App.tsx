@@ -672,7 +672,7 @@ function App() {
           </button>
           <div className="sidebar-footer">
             <span>AKSARA STUDIO</span>
-            <span>v1.1</span>
+            <span>v1.1.1</span>
           </div>
         </div>
       </aside>
